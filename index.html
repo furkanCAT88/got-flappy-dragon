@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>GOT: Flappy Dragon</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="ui-layer">
+            <div id="start-screen" class="screen active">
+                <div class="menu-content">
+                    <div class="title-container">
+                        <h1>Flappy Dragon</h1>
+                        <p class="subtitle">House of the Dragon</p>
+                    </div>
+
+                    <div class="selection-container">
+                        <section class="dragon-section">
+                            <h2>Choose Your Dragon</h2>
+                            <div id="dragon-selection" class="dragon-grid"></div>
+                        </section>
+
+                        <section class="house-section">
+                            <h2>Choose Your House</h2>
+                            <div id="kingdom-selection" class="kingdom-grid"></div>
+                        </section>
+                    </div>
+
+                    <button id="start-btn" class="start-btn hidden">Start Reign</button>
+                </div>
+            </div>
+
+            <div id="game-over-screen" class="screen hidden">
+                <h1>Game Over</h1>
+                <p>Score: <span id="final-score">0</span></p>
+                <p>High Score: <span id="high-score">0</span></p>
+                <button id="restart-btn">Try Again</button>
+            </div>
+
+            <div id="score-display" class="hidden">0</div>
+
+            <!-- Boss Battle UI -->
+            <div id="boss-hud" class="hidden">
+                <div class="boss-health-container">
+                    <div class="boss-name">NIGHT DRAGON</div>
+                    <div class="boss-health-bar">
+                        <div id="boss-hp-fill" style="width: 100%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="shoot-btn" class="action-btn hidden">🔥</button>
+        </div>
+        <div id="stamina-container" class="stamina-container hidden">
+            <div id="stamina-bar" class="stamina-bar"></div>
+        </div>
+    </div>
+
+    <script src="boss_class.js?v=2"></script>
+    <script src="script.js?v=2"></script>
+</body>
+
+</html>

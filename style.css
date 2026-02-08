@@ -1,0 +1,698 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+body,
+html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #333;
+    font-family: 'Cinzel', serif;
+    touch-action: none;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #000;
+}
+
+canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#ui-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 50;
+}
+
+/* Typography */
+h1 {
+    font-size: 3rem;
+    margin-bottom: 2rem;
+    color: #5e0b15;
+    /* Blood Red */
+    text-shadow: 2px 2px 0px #fff;
+    text-transform: uppercase;
+    text-align: center;
+}
+
+p {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    color: #ddd;
+    text-align: center;
+}
+
+button {
+    padding: 15px 40px;
+    font-size: 1.5rem;
+    font-family: 'Cinzel', serif;
+    background: linear-gradient(to bottom, #d4af37, #a8862d);
+    border: 2px solid #5c4815;
+    color: #2b1d0e;
+    cursor: pointer;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    transition: transform 0.1s;
+    pointer-events: auto;
+}
+
+button:active {
+    transform: scale(0.95);
+}
+
+/* Screens Common */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    display: flex;
+    /* Default flex for centering if needed */
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.screen.active {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.screen.hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    display: none !important;
+    /* Force hide to prevent clicking invisible elements */
+}
+
+/* Start Screen (Full Map) */
+#start-screen {
+    background: url('assets/menu_bg.png') no-repeat center center;
+    background-size: cover;
+    z-index: 150;
+    flex-direction: column;
+}
+
+.menu-content {
+    background: rgba(0, 0, 0, 0.85);
+    /* Semi-transparent box */
+    padding: 40px;
+    border-radius: 15px;
+    border: 3px solid #5e0b15;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.9), inset 0 0 30px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 900px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Kingdom Grid */
+.kingdom-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 15px;
+    width: 100%;
+    margin-top: 20px;
+    pointer-events: auto;
+}
+
+.kingdom-card {
+    background: #2a2a2a;
+    border: 2px solid #555;
+    border-radius: 8px;
+    padding: 10px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.kingdom-card:hover {
+    transform: translateY(-5px);
+    border-color: #d4af37;
+    box-shadow: 0 0 15px rgba(212, 175, 55, 0.5);
+}
+
+.kingdom-icon {
+    width: 60px;
+    height: 80px;
+    /* Taller for pillars */
+    object-fit: contain;
+    margin-bottom: 5px;
+}
+
+.kingdom-name {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #fff;
+}
+
+@media (max-width: 768px) {
+    .kingdom-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Game Over Screen */
+#game-over-screen {
+    background: rgba(0, 0, 0, 0.4);
+    /* Dimmed full screen bg */
+    z-index: 200;
+    flex-direction: column;
+}
+
+/* We style the content of game over without a wrapper, or we can assume h1/p are direct children */
+#game-over-screen h1 {
+    font-size: 4rem;
+    color: #ff0000;
+    text-shadow: 0 0 20px #000;
+}
+
+#game-over-screen p {
+    font-size: 2rem;
+    color: #fff;
+    text-shadow: 2px 2px 4px #000;
+}
+
+/* Initial visible fix for Game Over if active */
+#game-over-screen.active {
+    background: rgba(0, 0, 0, 0.85);
+    /* Darker when active */
+}
+
+/* HUD */
+#score-display {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    font-size: 3rem;
+    font-weight: bold;
+    color: #fff;
+    text-shadow: 2px 2px 0 #000;
+    z-index: 90;
+}
+
+.stamina-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    width: 250px;
+    height: 25px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 2px solid #fff;
+    border-radius: 12px;
+    z-index: 90;
+    overflow: hidden;
+}
+
+.stamina-bar {
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, #ff4d4d, #ffcc00);
+    transition: width 0.1s linear;
+}
+
+.stamina-container.hidden {
+    display: none !important;
+}
+
+/* Effects */
+.powerup-active {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 4rem;
+    color: #ffd700;
+    text-shadow: 0 0 20px #ff4500;
+    pointer-events: none;
+    animation: fadeOut 1.5s forwards;
+    z-index: 300;
+}
+
+@keyframes fadeOut {
+    0% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(0.5);
+    }
+
+    50% {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    100% {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(1.5);
+    }
+}
+
+/* Boss Battle UI */
+#boss-hud {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60%;
+    max-width: 400px;
+    z-index: 20;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.boss-health-container {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    border: 2px solid #aec6cf;
+    /* Ice blue border */
+    padding: 5px;
+    border-radius: 8px;
+    box-shadow: 0 0 15px rgba(174, 198, 207, 0.5);
+}
+
+.boss-name {
+    color: #aec6cf;
+    font-family: 'Cinzel', serif;
+    font-size: 14px;
+    text-align: center;
+    margin-bottom: 4px;
+    text-shadow: 0 0 5px #00ffff;
+}
+
+.boss-health-bar {
+    width: 100%;
+    height: 15px;
+    background: #333;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#boss-hp-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #00ffff, #0077be);
+    transition: width 0.3s ease-out;
+}
+
+/* Action Buttons */
+.action-btn {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 69, 0, 0.8);
+    border: 3px solid #ffd700;
+    color: white;
+    font-size: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    z-index: 30;
+    touch-action: manipulation;
+    box-shadow: 0 0 20px rgba(255, 69, 0, 0.6);
+    outline: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.action-btn:active {
+    transform: scale(0.95);
+    background: rgba(255, 69, 0, 1);
+}
+
+.action-btn.hidden {
+    display: none;
+}
+
+/* Dragon Grid */
+.dragon-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    /* 5 dragons */
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+.dragon-card {
+    background: #1a1a1a;
+    border: 2px solid #555;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.dragon-card:hover {
+    transform: translateY(-5px);
+    border-color: #ff4500;
+    box-shadow: 0 0 15px rgba(255, 69, 0, 0.5);
+}
+
+.dragon-card.selected {
+    border-color: #00ff00;
+    background: #2a2a2a;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.4);
+}
+
+.dragon-icon {
+    width: 60px;
+    height: 60px;
+    object-fit: contain;
+    margin-bottom: 5px;
+    image-rendering: pixelated;
+}
+
+.dragon-name {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #fff;
+    text-align: center;
+    text-transform: uppercase;
+}
+
+h2 {
+    font-size: 1.5rem;
+    color: #d4af37;
+    /* Gold */
+    margin: 20px 0 10px 0;
+    text-shadow: 1px 1px 0 #000;
+}
+
+@media (max-width: 768px) {
+    .dragon-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* Start Screen Overhaul - Single Page No Scroll */
+#start-screen {
+    background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url('assets/menu_bg.png') no-repeat center center;
+    background-size: cover;
+    z-index: 150;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    height: 100vh;
+    overflow: hidden;
+    /* Prevent body scroll */
+}
+
+.menu-content {
+    background: rgba(10, 10, 10, 0.9);
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    border-top: 2px solid #d4af37;
+    border-bottom: 2px solid #d4af37;
+    box-shadow: 0 0 50px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    max-width: 1200px;
+    width: 95%;
+    max-height: 95vh;
+    overflow: hidden;
+    /* Prevent content scroll */
+}
+
+.title-container {
+    text-align: center;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+    width: 100%;
+    flex-shrink: 0;
+}
+
+h1 {
+    font-size: 2.5rem;
+    /* Smaller title */
+    color: #d4af37;
+    text-shadow: 0 0 10px rgba(212, 175, 55, 0.3);
+    margin-bottom: 0;
+    letter-spacing: 2px;
+}
+
+.subtitle {
+    font-size: 0.9rem;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 4px;
+    margin-bottom: 0;
+}
+
+.selection-container {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    /* Horizontal Split */
+    gap: 20px;
+    flex: 1;
+    /* Take remaining space */
+    min-height: 0;
+    /* Allow flex shrinking */
+    padding: 10px 0;
+}
+
+.dragon-section {
+    flex: 1;
+    /* Equal width */
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid #333;
+    padding-right: 15px;
+    min-height: 0;
+}
+
+.house-section {
+    flex: 1;
+    /* Equal width */
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+h2 {
+    font-size: 1.2rem;
+    color: #eee;
+    background: linear-gradient(90deg, transparent, #333, transparent);
+    padding: 5px;
+    text-align: center;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    font-weight: normal;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+}
+
+/* Compact Grids */
+.dragon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    /* Slightly bigger min */
+    gap: 10px;
+    width: 100%;
+    overflow-y: auto;
+    /* Scroll ONLY the grid if needed */
+    padding: 5px;
+    scrollbar-width: none;
+}
+
+.dragon-grid::-webkit-scrollbar {
+    display: none;
+}
+
+.kingdom-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    /* Force 2 columns for width */
+    gap: 10px;
+    width: 100%;
+    overflow-y: auto;
+    padding: 5px;
+    scrollbar-width: none;
+}
+
+.kingdom-grid::-webkit-scrollbar {
+    display: none;
+}
+
+
+/* Compact Cards */
+.dragon-card {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    padding: 10px 5px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transition: all 0.2s;
+}
+
+.dragon-card:hover {
+    transform: translateY(-2px);
+    border-color: #d4af37;
+    background: #252525;
+}
+
+.dragon-card.selected {
+    border-color: #d4af37;
+    background: linear-gradient(to bottom, #2a2a2a, #3a2a0d);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.2);
+}
+
+.dragon-icon {
+    width: 80px;
+    height: 80px;
+    margin-bottom: 5px;
+    image-rendering: pixelated;
+    transition: transform 0.2s;
+}
+
+.dragon-card:hover .dragon-icon {
+    transform: scale(1.05);
+}
+
+.dragon-name {
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: #ccc;
+    text-transform: uppercase;
+}
+
+.dragon-card.selected .dragon-name {
+    color: #d4af37;
+}
+
+
+.kingdom-card {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    padding: 10px;
+    /* More padding */
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    /* Bigger gap */
+    cursor: pointer;
+    transition: all 0.2s;
+    opacity: 0.8;
+}
+
+.kingdom-card:hover {
+    opacity: 1;
+    border-color: #888;
+    transform: translateY(-2px);
+}
+
+.kingdom-card.selected {
+    opacity: 1;
+    border-color: #fff;
+    background: #252525;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.25);
+}
+
+.kingdom-icon {
+    width: 45px;
+    /* Bigger */
+    height: 55px;
+    object-fit: contain;
+    margin-bottom: 0;
+}
+
+.kingdom-name {
+    font-size: 0.9rem;
+    /* Bigger text */
+    font-weight: bold;
+    /* Bolder */
+    color: #aaa;
+    text-align: left;
+    white-space: normal;
+    /* Allow wrapping if needed */
+    line-height: 1.1;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.8);
+    /* Ensure visibility */
+}
+
+.kingdom-card.selected .kingdom-name {
+    color: #fff;
+}
+
+
+/* Start Button Area */
+.start-btn {
+    margin-top: 15px;
+    padding: 12px 60px;
+    /* Bigger button */
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+/* Mobile adjustments */
+@media (max-width: 768px) {
+    .selection-container {
+        flex-direction: column;
+    }
+
+    .dragon-section {
+        border-right: none;
+        border-bottom: 1px solid #333;
+        padding-bottom: 10px;
+        padding-right: 0;
+        flex: 1;
+    }
+
+    .house-section {
+        flex: 1;
+    }
+
+    .dragon-grid {
+        grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    }
+
+    .kingdom-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    h1 {
+        font-size: 1.8rem;
+    }
+
+    .menu-content {
+        padding: 10px;
+    }
+}
