@@ -520,8 +520,8 @@ class Game {
     }
 
     shoot() {
-        if (this.currentState === 'playing' && this.stamina >= 5) {
-            this.stamina -= 5;
+        if (this.currentState === 'playing' && this.stamina >= 10) {
+            this.stamina -= 10;
             if (this.ui.stamina) this.ui.stamina.style.width = this.stamina + '%';
             this.projectiles.push(new Projectile(this.dragon.x + 40, this.dragon.y, 'fire'));
             if (this.sounds) this.sounds.playFire();
@@ -567,8 +567,9 @@ class Game {
     bossDefeated() {
         this.bossMode = false;
         this.boss = null;
-        this.projectiles = [];
+        // Do not clear projectiles here as it causes a crash during the loop
         this.enemies = [];
+
         this.score += 10;
         if (this.ui.score) this.ui.score.innerText = this.score;
 
@@ -579,21 +580,8 @@ class Game {
         const bar = document.getElementById('boss-hp-fill');
         if (bar) bar.style.width = '0%';
 
-        // FORCE IMMEDIATE SPAWNS to prevent "empty screen" feeling
-        this.frameCount = 0;
-
-        try {
-            // 1. Spawn Obstacle instantly
-            const obs = new Obstacle(this.canvas, this.obstacleImageSrc);
-            this.obstacles.push(obs);
-
-            // 2. Spawn Enemy instantly (offset so it doesn't overlap perfectly)
-            const enemy = new Enemy(this.canvas);
-            enemy.x = this.canvas.width + 400;
-            this.enemies.push(enemy);
-        } catch (e) {
-            console.error("Error spawning post-boss entities:", e);
-        }
+        // Resume game: Set frameCount to 119 so the next frame (120) triggers a natural obstacle spawn
+        this.frameCount = 119;
     }
 
     update() {
@@ -625,8 +613,8 @@ class Game {
         }
 
         // Stamina
-        if (this.frameCount % 3 === 0 && this.stamina < 100) {
-            this.stamina += 2;
+        if (this.frameCount % 2 === 0 && this.stamina < 100) {
+            this.stamina += 1;
             if (this.ui.stamina) this.ui.stamina.style.width = this.stamina + '%';
         }
 
