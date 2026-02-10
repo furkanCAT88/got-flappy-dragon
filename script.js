@@ -3,29 +3,136 @@ class OrganicSoundController {
     constructor() {
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.3;
+        this.masterGain.gain.value = 0.25; // Lower global volume for subtlety
         this.masterGain.connect(this.ctx.destination);
+        this.buffers = {};
+        this.initNoiseBuffers();
     }
+
+    initNoiseBuffers() {
+        // Safe check for sampleRate
+        const sampleRate = this.ctx.sampleRate || 44100;
+        const bufferSize = sampleRate * 2;
+
+        // Brown Noise (Deep, rumbling - Fire/Explosion base)
+        const brownBuffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
+        const data = brownBuffer.getChannelData(0);
+        let lastOut = 0;
+        for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            data[i] = (lastOut + (0.02 * white)) / 1.02;
+            lastOut = data[i];
+            data[i] *= 3.5;
+        }
+        this.buffers.brown = brownBuffer;
+
+        // Pink Noise (Softer, texture - Wind base)
+        const pinkBuffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
+        const pData = pinkBuffer.getChannelData(0);
+        let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+        for (let i = 0; i < bufferSize; i++) {
+            const white = Math.random() * 2 - 1;
+            b0 = 0.99886 * b0 + white * 0.0555179;
+            b1 = 0.99332 * b1 + white * 0.0750759;
+            b2 = 0.96900 * b2 + white * 0.1538520;
+            b3 = 0.86650 * b3 + white * 0.3104856;
+            b4 = 0.55000 * b4 + white * 0.5329522;
+            b5 = -0.7616 * b5 - white * 0.0168980;
+            pData[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+            pData[i] *= 0.11;
+            b6 = white * 0.115926;
+        }
+        this.buffers.pink = pinkBuffer;
+    }
+
     resume() { if (this.ctx.state === 'suspended') this.ctx.resume(); }
-    playJump() { this.resume(); this.playTone(150, 'triangle', 0.1); }
-    playScore() { this.resume(); this.playTone(400, 'sine', 0.1); }
-    playCrack() { this.resume(); this.playTone(60, 'sawtooth', 0.2); }
-    playFire() { this.resume(); this.playTone(200, 'sawtooth', 0.1); }
-    playExplosion() { this.resume(); this.playTone(100, 'square', 0.3); }
-    playTone(freq, type, duration) {
-        try {
-            const osc = this.ctx.createOscillator();
-            const gain = this.ctx.createGain();
-            osc.type = type;
-            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-            gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
-            osc.connect(gain);
-            gain.connect(this.masterGain);
-            osc.start();
-            osc.stop(this.ctx.currentTime + duration);
-        } catch(e) {}
+
+    playScore() { // "Wind" sound for passing obstacle
+        this.resume();
+        const t = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.buffers.pink;
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.Q.value = 1.0;
+        filter.frequency.setValueAtTime(400, t);
+        filter.frequency.linearRampToValueAtTime(800, t + 0.1); // Whoosh up
+        filter.frequency.linearRampToValueAtTime(200, t + 0.3); // Whoosh down
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.3, t + 0.1);
+        gain.gain.linearRampToValueAtTime(0, t + 0.4);
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(t);
+        src.stop(t + 0.4);
     }
+    playTone(freq, type, duration) { /* Legacy fallback */ }
+
+    playFire() { // "Realistic" fire breath
+        this.resume();
+        const t = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.buffers.brown; // Rumble base
+
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'highpass';
+        filter.frequency.setValueAtTime(300, t);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.5, t + 0.05); // Soft attack
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4); // Fade out
+
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(t);
+        src.stop(t + 0.4);
+    }
+
+    playJump() { // Flap sound -> Soft thud
+        this.resume();
+        const t = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.buffers.brown;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(150, t);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(0.4, t + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(t);
+        src.stop(t + 0.2);
+    }
+
+    playExplosion() { // Impact
+        this.resume();
+        const t = this.ctx.currentTime;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.buffers.brown;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(300, t);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.5, t); // Reduced volume
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.masterGain);
+        src.start(t);
+        src.stop(t + 0.3);
+    }
+
+    playCrack() { this.playExplosion(); }
 }
 
 class InputHandler {
@@ -40,14 +147,14 @@ class InputHandler {
         });
     }
     onInput(e) {
-        if (e.type === 'mousedown' && e.target.closest('button')) return; 
-        
+        if (e.type === 'mousedown' && e.target.closest('button')) return;
+
         if (game && game.sounds) game.sounds.resume();
         if (game && game.currentState === 'playing') {
             game.dragon.flap();
-            if(game.sounds) game.sounds.playJump();
+            if (game.sounds) game.sounds.playJump();
         } else if (game && game.currentState === 'gameover') {
-             // game.resetGame();
+            // game.resetGame();
         }
     }
 }
@@ -179,7 +286,7 @@ class Projectile {
     draw(ctx) {
         ctx.save();
         ctx.beginPath();
-        
+
         if (this.type === 'fire') {
             // Realistic Fire: Inner white/yellow, Outer orange/red, Glow
             ctx.shadowBlur = 15;
@@ -230,9 +337,9 @@ class Enemy {
             this.shootTimer++;
             // REDUCED FIRE RATE for difficulty balance
             if (this.shootTimer > 400 && Math.random() < 0.01) {
-                 const sy = this.y + this.height / 2;
-                 game.projectiles.push(new Projectile(this.x, sy, 'ice'));
-                 this.shootTimer = 0;
+                const sy = this.y + this.height / 2;
+                game.projectiles.push(new Projectile(this.x, sy, 'ice'));
+                this.shootTimer = 0;
             }
         }
     }
@@ -263,12 +370,12 @@ class Game {
             bossHud: document.getElementById('boss-hud'),
             restartBtn: document.getElementById('restart-btn')
         };
-        
+
         this.currentKingdomKey = 'stark';
         this.currentDragonKey = 'balerion';
         this.bgImage = new Image();
         this.obstacleImageSrc = 'assets/obs_stark_v3.png';
-        
+
         this.dragon = new Dragon(this.canvas, 'assets/dragon_balerion.png');
         this.obstacles = [];
         this.projectiles = [];
@@ -281,10 +388,10 @@ class Game {
         this.currentSpeed = 3;
         this.bossMode = false;
         this.nextBossThreshold = 50;
-        
+
         this.resize();
         window.addEventListener('resize', () => this.resize());
-        
+
         if (this.ui.startBtn) {
             this.ui.startBtn.addEventListener('click', () => this.startGame());
         }
@@ -294,18 +401,18 @@ class Game {
         if (this.ui.shootBtn) {
             this.ui.shootBtn.addEventListener('click', (e) => { e.stopPropagation(); this.shoot(); });
             this.ui.shootBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-            this.ui.shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); this.shoot(); }, {passive: false});
+            this.ui.shootBtn.addEventListener('touchstart', (e) => { e.preventDefault(); e.stopPropagation(); this.shoot(); }, { passive: false });
         }
 
         this.initSelectionMenu();
         this.initDragonSelection();
         this.updateStartButton();
-        
+
         new InputHandler();
         this.loop = this.loop.bind(this);
         requestAnimationFrame(this.loop);
     }
-    
+
     resize() {
         this.canvas.width = window.innerWidth;
         this.canvas.height = window.innerHeight;
@@ -369,7 +476,7 @@ class Game {
         this.loadAssets(this.currentKingdomKey);
         const d = DRAGONS[this.currentDragonKey];
         if (d) this.dragon = new Dragon(this.canvas, d.img, d.scale, d.frames);
-        
+
         this.currentState = 'playing';
         this.obstacles = [];
         this.projectiles = [];
@@ -379,37 +486,37 @@ class Game {
         this.stamina = 100;
         this.bossMode = false;
         this.nextBossThreshold = 50;
-        if(this.boss) this.boss = null;
-        
-        const s = document.getElementById('start-screen'); if(s){ s.classList.remove('active'); s.classList.add('hidden'); }
-        const g = document.getElementById('game-over-screen'); if(g){ g.classList.remove('active'); g.classList.add('hidden'); }
-        
+        if (this.boss) this.boss = null;
+
+        const s = document.getElementById('start-screen'); if (s) { s.classList.remove('active'); s.classList.add('hidden'); }
+        const g = document.getElementById('game-over-screen'); if (g) { g.classList.remove('active'); g.classList.add('hidden'); }
+
         if (this.ui.bossHud) this.ui.bossHud.classList.remove('hidden');
         const bar = document.getElementById('boss-hp-fill');
         if (bar) bar.style.width = '0%';
-        
+
         if (this.ui.score) {
             this.ui.score.innerText = '0';
             this.ui.score.classList.remove('hidden');
         }
-        
-        const sc = document.getElementById('stamina-container'); if(sc) sc.classList.remove('hidden');
+
+        const sc = document.getElementById('stamina-container'); if (sc) sc.classList.remove('hidden');
         if (this.ui.stamina) this.ui.stamina.style.width = '100%';
-        
+
         if (this.ui.shootBtn) this.ui.shootBtn.classList.remove('hidden');
     }
-    
+
     resetGame() {
         this.currentState = 'menu';
-        const s = document.getElementById('start-screen'); if(s){ s.classList.add('active'); s.classList.remove('hidden'); }
-        const g = document.getElementById('game-over-screen'); if(g){ g.classList.remove('active'); g.classList.add('hidden'); }
-        
+        const s = document.getElementById('start-screen'); if (s) { s.classList.add('active'); s.classList.remove('hidden'); }
+        const g = document.getElementById('game-over-screen'); if (g) { g.classList.remove('active'); g.classList.add('hidden'); }
+
         this.nextBossThreshold = 50;
         if (this.ui.bossHud) this.ui.bossHud.classList.add('hidden');
-        
+
         if (this.ui.score) this.ui.score.classList.add('hidden');
         if (this.ui.shootBtn) this.ui.shootBtn.classList.add('hidden');
-        const sc = document.getElementById('stamina-container'); if(sc) sc.classList.add('hidden');
+        const sc = document.getElementById('stamina-container'); if (sc) sc.classList.add('hidden');
     }
 
     shoot() {
@@ -417,13 +524,13 @@ class Game {
             this.stamina -= 5;
             if (this.ui.stamina) this.ui.stamina.style.width = this.stamina + '%';
             this.projectiles.push(new Projectile(this.dragon.x + 40, this.dragon.y, 'fire'));
-            if(this.sounds) this.sounds.playFire();
+            if (this.sounds) this.sounds.playFire();
         }
     }
 
     gameOver() {
         this.currentState = 'gameover';
-        const g = document.getElementById('game-over-screen'); if(g){ g.classList.add('active'); g.classList.remove('hidden'); }
+        const g = document.getElementById('game-over-screen'); if (g) { g.classList.add('active'); g.classList.remove('hidden'); }
         if (this.sounds) this.sounds.playCrack();
         const fs = document.getElementById('final-score');
         if (fs) fs.innerText = this.score;
@@ -441,19 +548,19 @@ class Game {
         if (this.bossMode) return;
         console.log("Starting Boss Battle!");
         this.bossMode = true;
-        
+
         if (this.ui.bossHud) {
             this.ui.bossHud.classList.remove('hidden');
             const bar = document.getElementById('boss-hp-fill');
             if (bar) bar.style.width = '100%';
         }
-        
+
         if (typeof Boss !== 'undefined') {
-             this.boss = new Boss(this);
-             setTimeout(() => { 
-                this.obstacles = []; 
-                this.enemies = []; 
-             }, 10);
+            this.boss = new Boss(this);
+            setTimeout(() => {
+                this.obstacles = [];
+                this.enemies = [];
+            }, 10);
         }
     }
 
@@ -464,43 +571,59 @@ class Game {
         this.enemies = [];
         this.score += 10;
         if (this.ui.score) this.ui.score.innerText = this.score;
-        
+
         // Critical: Update threshold to prevent immediate restart
         this.nextBossThreshold = (Math.floor(this.score / 50) + 1) * 50;
 
         // Reset bar for next round
         const bar = document.getElementById('boss-hp-fill');
         if (bar) bar.style.width = '0%';
+
+        // FORCE IMMEDIATE SPAWNS to prevent "empty screen" feeling
+        this.frameCount = 0;
+
+        try {
+            // 1. Spawn Obstacle instantly
+            const obs = new Obstacle(this.canvas, this.obstacleImageSrc);
+            this.obstacles.push(obs);
+
+            // 2. Spawn Enemy instantly (offset so it doesn't overlap perfectly)
+            const enemy = new Enemy(this.canvas);
+            enemy.x = this.canvas.width + 400;
+            this.enemies.push(enemy);
+        } catch (e) {
+            console.error("Error spawning post-boss entities:", e);
+        }
     }
 
     update() {
         if (this.currentState !== 'playing') return;
-        
+
         // Auto-check boss start (Safety)
         if (!this.bossMode && this.score >= this.nextBossThreshold) {
             this.startBossBattle();
         }
 
         this.frameCount++;
-        
+
         // Boss Bar Progress
         if (!this.bossMode && this.ui.bossHud) {
             let startScore = this.nextBossThreshold - 50;
             let currentProgress = this.score - startScore;
             if (currentProgress < 0) currentProgress = 0;
             if (currentProgress > 50) currentProgress = 50;
-            
+
             const percentage = (currentProgress / 50) * 100;
             const bar = document.getElementById('boss-hp-fill');
             if (bar) bar.style.width = percentage + '%';
         }
-        
+
         // Background scroll
         if (!this.bossMode) {
             this.bgX -= this.currentSpeed * 0.5;
             if (this.bgX <= -window.innerWidth * 2) this.bgX += window.innerWidth * 2;
         }
-        
+
         // Stamina
         if (this.frameCount % 3 === 0 && this.stamina < 100) {
             this.stamina += 2;
@@ -509,42 +632,43 @@ class Game {
 
         this.dragon.update();
         if (this.dragon.y < 0 || this.dragon.y > this.canvas.height) this.gameOver();
-        
+
         // Obstacles
         if (this.frameCount % 120 === 0 && !this.bossMode) {
             this.obstacles.push(new Obstacle(this.canvas, this.obstacleImageSrc));
         }
         for (let i = this.obstacles.length - 1; i >= 0; i--) {
-            if (this.bossMode) continue; 
+            if (this.bossMode) continue;
             let o = this.obstacles[i];
             o.x -= this.currentSpeed;
             if (o.x + o.width < 0) this.obstacles.splice(i, 1);
-            
+
             if (this.dragon.x + this.dragon.radius > o.x && this.dragon.x - this.dragon.radius < o.x + o.width) {
-                 if (this.dragon.y - this.dragon.radius < o.topHeight || this.dragon.y + this.dragon.radius > o.topHeight + o.gap) {
-                     this.gameOver();
-                 }
+                if (this.dragon.y - this.dragon.radius < o.topHeight || this.dragon.y + this.dragon.radius > o.topHeight + o.gap) {
+                    this.gameOver();
+                }
             }
             if (!o.passed && this.dragon.x > o.x + o.width) {
                 o.passed = true;
                 this.score++;
                 if (this.ui.score) this.ui.score.innerText = this.score;
+                if (this.sounds) this.sounds.playScore();
             }
         }
-        
+
         // Boss Logic
         if (this.bossMode && this.boss) {
-             this.boss.update();
-             if (this.boss.active) {
-                const dx = this.dragon.x - (this.boss.x + this.boss.width/2);
-                const dy = this.dragon.y - (this.boss.y + this.boss.height/2);
-                if (Math.sqrt(dx*dx + dy*dy) < 80) this.gameOver();
-             }
+            this.boss.update();
+            if (this.boss.active) {
+                const dx = this.dragon.x - (this.boss.x + this.boss.width / 2);
+                const dy = this.dragon.y - (this.boss.y + this.boss.height / 2);
+                if (Math.sqrt(dx * dx + dy * dy) < 80) this.gameOver();
+            }
         }
-    
+
         // Enemies
         if (this.frameCount % 200 === 0 && !this.bossMode) {
-             this.enemies.push(new Enemy(this.canvas));
+            this.enemies.push(new Enemy(this.canvas));
         }
         for (let i = this.enemies.length - 1; i >= 0; i--) {
             const e = this.enemies[i];
@@ -553,26 +677,26 @@ class Game {
                 this.enemies.splice(i, 1);
                 continue;
             }
-            const dx = this.dragon.x - (e.x + e.width/2);
-            const dy = this.dragon.y - (e.y + e.height/2);
-            if (Math.sqrt(dx*dx + dy*dy) < this.dragon.radius + e.width/3) {
+            const dx = this.dragon.x - (e.x + e.width / 2);
+            const dy = this.dragon.y - (e.y + e.height / 2);
+            if (Math.sqrt(dx * dx + dy * dy) < this.dragon.radius + e.width / 3) {
                 this.gameOver();
             }
         }
-        
+
         // Projectiles
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const p = this.projectiles[i];
             p.update();
             if (!p.active) {
-                 this.projectiles.splice(i, 1);
-                 continue;
+                this.projectiles.splice(i, 1);
+                continue;
             }
-            
+
             // PROJECTILE COLLISION (FIRE vs ICE)
             // Added feature: Shoot down incoming ice balls
             if (p.type === 'fire') {
-                 for (let j = 0; j < this.projectiles.length; j++) {
+                for (let j = 0; j < this.projectiles.length; j++) {
                     const other = this.projectiles[j];
                     if (other.active && (other.type === 'ice' || other.type === 'ice-arc')) {
                         const dist = Math.sqrt(Math.pow(p.x - other.x, 2) + Math.pow(p.y - other.y, 2));
@@ -585,25 +709,25 @@ class Game {
                     }
                 }
                 if (!p.active) continue; // If destroyed, stop checking enemies
-            
+
                 this.enemies.forEach(e => {
                     if (e.active) {
-                        const dist = Math.sqrt(Math.pow(p.x - (e.x+e.width/2), 2) + Math.pow(p.y - (e.y+e.height/2), 2));
-                        if (dist < e.width/2) {
+                        const dist = Math.sqrt(Math.pow(p.x - (e.x + e.width / 2), 2) + Math.pow(p.y - (e.y + e.height / 2), 2));
+                        if (dist < e.width / 2) {
                             e.active = false;
                             p.active = false;
                             this.score += 5;
-                            if(this.ui.score) this.ui.score.innerText = this.score;
-                            if(this.sounds) this.sounds.playExplosion();
+                            if (this.ui.score) this.ui.score.innerText = this.score;
+                            if (this.sounds) this.sounds.playExplosion();
                         }
                     }
                 });
                 if (this.bossMode && this.boss && this.boss.active) {
-                     const dist = Math.sqrt(Math.pow(p.x - (this.boss.x+this.boss.width/2), 2) + Math.pow(p.y - (this.boss.y+this.boss.height/2), 2));
-                     if (dist < 80) {
-                         p.active = false;
-                         this.boss.takeDamage();
-                     }
+                    const dist = Math.sqrt(Math.pow(p.x - (this.boss.x + this.boss.width / 2), 2) + Math.pow(p.y - (this.boss.y + this.boss.height / 2), 2));
+                    if (dist < 80) {
+                        p.active = false;
+                        this.boss.takeDamage();
+                    }
                 }
             } else {
                 const dist = Math.sqrt(Math.pow(p.x - this.dragon.x, 2) + Math.pow(p.y - this.dragon.y, 2));
@@ -622,27 +746,27 @@ class Game {
                 const H = window.innerHeight;
                 this.ctx.drawImage(this.bgImage, this.bgX, 0, W + 2, H);
                 this.ctx.save();
-                this.ctx.translate(this.bgX + 2 * W, 0); 
-                this.ctx.scale(-1, 1); 
+                this.ctx.translate(this.bgX + 2 * W, 0);
+                this.ctx.scale(-1, 1);
                 this.ctx.drawImage(this.bgImage, -2, 0, W + 2, H);
                 this.ctx.restore();
                 this.ctx.drawImage(this.bgImage, this.bgX + 2 * W - 2, 0, W + 2, H);
                 this.ctx.save();
-                this.ctx.translate(this.bgX + 4 * W - 2, 0); 
-                this.ctx.scale(-1, 1); 
+                this.ctx.translate(this.bgX + 4 * W - 2, 0);
+                this.ctx.scale(-1, 1);
                 this.ctx.drawImage(this.bgImage, -2, 0, W + 2, H);
                 this.ctx.restore();
             } else {
                 const k = KINGDOMS[this.currentKingdomKey];
                 this.ctx.fillStyle = (k && k.color) ? k.color : '#222';
-                this.ctx.fillRect(0,0,this.canvas.width, this.canvas.height);
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
             }
             if (this.obstacles) this.obstacles.forEach(o => o.draw(this.ctx));
             if (this.dragon) this.dragon.draw(this.ctx);
             if (this.enemies) this.enemies.forEach(e => e.draw(this.ctx));
             if (this.projectiles) this.projectiles.forEach(p => p.draw(this.ctx));
             if (this.bossMode && this.boss) this.boss.draw(this.ctx);
-        } catch(e) { console.error("Draw error", e); }
+        } catch (e) { console.error("Draw error", e); }
     }
 
     loop() {
