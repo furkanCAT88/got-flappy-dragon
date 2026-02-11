@@ -1,4 +1,4 @@
-# 🐉 Wings of Westeros
+#  Wings of Westeros
 
 Welcome to **Wings of Westeros**, a high-octane, dragon-riding arcade game set in the world of the Seven Kingdoms. Take control of legendary dragons, dodge obstacles, battle the Night King's army, and conquer the skies!
 
@@ -49,7 +49,7 @@ This isn't just about flying!
     *   Double-click `index.html` to open it in your default web browser.
     *   *Tip: For the best experience, use a modern browser like Chrome, Firefox, or Edge.*
 
-## 🛠️ Technologies Used
+##  Technologies Used
 *   **HTML5 Canvas**: For high-performance 2D rendering.
 *   **Vanilla JavaScript**: Core game logic, physics, and state management (No heavy frameworks!).
 *   **CSS3**: Styling the UI and responsive design.
